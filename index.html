@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskFlow To-Do List</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Task categories">
+        <div class="brand">
+          <div class="brand-icon" aria-hidden="true">T</div>
+          <div>
+            <h1>TaskFlow</h1>
+            <p>Plan the day clearly</p>
+          </div>
+        </div>
+
+        <nav class="category-nav" id="categoryNav"></nav>
+
+        <div class="sidebar-footer">
+          <button class="theme-toggle" id="openCategorySettings" type="button">
+            <span aria-hidden="true">#</span>
+            <span>Categories</span>
+          </button>
+          <button class="theme-toggle" id="themeToggle" type="button">
+            <span id="themeIcon" aria-hidden="true">M</span>
+            <span id="themeLabel">Dark mode</span>
+          </button>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div>
+            <p class="date-label" id="todayLabel">Today</p>
+            <h2>To-Do List</h2>
+          </div>
+          <button class="primary-button" id="openTaskForm" type="button">
+            <span aria-hidden="true">+</span>
+            Add task
+          </button>
+        </header>
+
+        <section class="stats-grid" aria-label="Progress statistics">
+          <article class="stat-card">
+            <span>Total</span>
+            <strong id="totalTasks">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Completed</span>
+            <strong id="completedTasks">0</strong>
+          </article>
+          <article class="stat-card">
+            <span>Active</span>
+            <strong id="activeTasks">0</strong>
+          </article>
+          <article class="stat-card progress-card">
+            <div>
+              <span>Progress</span>
+              <strong id="progressPercent">0%</strong>
+            </div>
+            <div class="progress-track" aria-hidden="true">
+              <div class="progress-fill" id="progressFill"></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="toolbar" aria-label="Search and filters">
+          <label class="search-box">
+            <span aria-hidden="true">?</span>
+            <input
+              id="searchInput"
+              type="search"
+              placeholder="Search by title or description"
+              autocomplete="off"
+            />
+          </label>
+
+          <div class="filter-group">
+            <label for="categoryFilter">Category</label>
+            <select id="categoryFilter"></select>
+          </div>
+
+          <div class="filter-group">
+            <label for="statusFilter">Status</label>
+            <select id="statusFilter">
+              <option value="All">All</option>
+              <option value="Active">Active</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+        </section>
+
+        <section class="task-list" id="taskList" aria-live="polite"></section>
+      </main>
+    </div>
+
+    <div class="modal-backdrop hidden" id="taskModal" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+      <form class="task-form" id="taskForm">
+        <div class="form-header">
+          <div>
+            <p class="date-label">Task details</p>
+            <h3 id="formTitle">Add task</h3>
+          </div>
+          <button class="icon-button" id="closeTaskForm" type="button" aria-label="Close form">x</button>
+        </div>
+
+        <input type="hidden" id="taskId" />
+
+        <label>
+          Title
+          <input id="taskTitle" type="text" placeholder="e.g. Finish math notes" required />
+        </label>
+
+        <label>
+          Description
+          <textarea id="taskDescription" rows="4" placeholder="Add helpful details"></textarea>
+        </label>
+
+        <div class="form-row">
+          <label>
+            Category
+            <select id="taskCategory" required></select>
+          </label>
+
+          <label>
+            Priority
+            <select id="taskPriority" required>
+              <option value="Low">Low</option>
+              <option value="Medium">Medium</option>
+              <option value="High">High</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          Due date
+          <input id="taskDueDate" type="date" />
+        </label>
+
+        <div class="form-actions">
+          <button class="secondary-button" id="cancelTaskForm" type="button">Cancel</button>
+          <button class="primary-button" type="submit">Save task</button>
+        </div>
+      </form>
+    </div>
+
+    <div class="modal-backdrop hidden" id="categoryModal" role="dialog" aria-modal="true" aria-labelledby="categorySettingsTitle">
+      <section class="task-form category-settings">
+        <div class="form-header">
+          <div>
+            <p class="date-label">Settings</p>
+            <h3 id="categorySettingsTitle">Categories</h3>
+          </div>
+          <button class="icon-button" id="closeCategorySettings" type="button" aria-label="Close category settings">x</button>
+        </div>
+
+        <form class="category-add-form" id="categoryForm">
+          <label>
+            Name
+            <input id="categoryName" type="text" placeholder="e.g. Fitness" required />
+          </label>
+          <label>
+            Color
+            <input id="categoryColor" type="color" value="#5379f6" />
+          </label>
+          <button class="primary-button" type="submit">Add category</button>
+        </form>
+
+        <div class="category-settings-list" id="categorySettingsList"></div>
+      </section>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
