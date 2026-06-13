@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TaskFlow To-Do List</title>
+    <title>TaskFlow RPG</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -16,10 +16,10 @@
     <div class="app-shell">
       <aside class="sidebar" aria-label="Task categories">
         <div class="brand">
-          <div class="brand-icon" aria-hidden="true">T</div>
+          <div class="brand-icon" aria-hidden="true">XP</div>
           <div>
-            <h1>TaskFlow</h1>
-            <p>Plan the day clearly</p>
+            <h1>TaskFlow RPG</h1>
+            <p>Level up by finishing tasks</p>
           </div>
         </div>
 
@@ -41,13 +41,57 @@
         <header class="topbar">
           <div>
             <p class="date-label" id="todayLabel">Today</p>
-            <h2>To-Do List</h2>
+            <h2>Productivity RPG</h2>
           </div>
           <button class="primary-button" id="openTaskForm" type="button">
             <span aria-hidden="true">+</span>
-            Add task
+            Add quest
           </button>
         </header>
+
+        <section class="rpg-hero" aria-label="RPG profile">
+          <div class="level-card">
+            <div>
+              <span class="eyebrow">Current level</span>
+              <strong id="playerLevel">1</strong>
+            </div>
+            <div class="level-ring" id="levelRing">0%</div>
+          </div>
+
+          <div class="xp-panel">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">XP progress</span>
+                <h3 id="xpText">0 / 100 XP</h3>
+              </div>
+              <strong id="totalXpText">0 total XP</strong>
+            </div>
+            <div class="progress-track tall" aria-hidden="true">
+              <div class="progress-fill xp-fill" id="xpFill"></div>
+            </div>
+            <div class="hero-metrics">
+              <span><strong id="coinCount">0</strong> coins</span>
+              <span><strong id="currentStreak">0</strong> day streak</span>
+              <span><strong id="productivityScore">0</strong> score</span>
+            </div>
+          </div>
+
+          <div class="daily-goal-card">
+            <div class="panel-header">
+              <div>
+                <span class="eyebrow">Daily goal</span>
+                <h3 id="dailyGoalText">0 / 3 quests</h3>
+              </div>
+              <label class="goal-control">
+                Target
+                <input id="dailyGoalInput" type="number" min="1" max="25" value="3" />
+              </label>
+            </div>
+            <div class="progress-track" aria-hidden="true">
+              <div class="progress-fill goal-fill" id="dailyGoalFill"></div>
+            </div>
+          </div>
+        </section>
 
         <section class="stats-grid" aria-label="Progress statistics">
           <article class="stat-card">
@@ -62,14 +106,9 @@
             <span>Active</span>
             <strong id="activeTasks">0</strong>
           </article>
-          <article class="stat-card progress-card">
-            <div>
-              <span>Progress</span>
-              <strong id="progressPercent">0%</strong>
-            </div>
-            <div class="progress-track" aria-hidden="true">
-              <div class="progress-fill" id="progressFill"></div>
-            </div>
+          <article class="stat-card">
+            <span>Best streak</span>
+            <strong id="bestStreak">0</strong>
           </article>
         </section>
 
@@ -79,7 +118,7 @@
             <input
               id="searchInput"
               type="search"
-              placeholder="Search by title or description"
+              placeholder="Search quests by title or description"
               autocomplete="off"
             />
           </label>
@@ -99,7 +138,49 @@
           </div>
         </section>
 
-        <section class="task-list" id="taskList" aria-live="polite"></section>
+        <section class="content-grid">
+          <section class="task-list-panel">
+            <div class="section-heading">
+              <div>
+                <span class="eyebrow">Quest log</span>
+                <h3>Tasks</h3>
+              </div>
+            </div>
+            <div class="task-list" id="taskList" aria-live="polite"></div>
+          </section>
+
+          <aside class="rpg-side-panel">
+            <section class="mini-panel">
+              <div class="section-heading">
+                <div>
+                  <span class="eyebrow">Achievements</span>
+                  <h3>Milestones</h3>
+                </div>
+              </div>
+              <div class="achievement-list" id="achievementList"></div>
+            </section>
+
+            <section class="mini-panel">
+              <div class="section-heading">
+                <div>
+                  <span class="eyebrow">Points shop</span>
+                  <h3>Rewards</h3>
+                </div>
+              </div>
+              <div class="shop-list" id="shopList"></div>
+            </section>
+          </aside>
+        </section>
+
+        <section class="statistics-panel">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">Statistics</span>
+              <h3>Productivity overview</h3>
+            </div>
+          </div>
+          <div class="statistics-grid" id="statisticsGrid"></div>
+        </section>
       </main>
     </div>
 
@@ -107,8 +188,8 @@
       <form class="task-form" id="taskForm">
         <div class="form-header">
           <div>
-            <p class="date-label">Task details</p>
-            <h3 id="formTitle">Add task</h3>
+            <p class="date-label">Quest details</p>
+            <h3 id="formTitle">Add quest</h3>
           </div>
           <button class="icon-button" id="closeTaskForm" type="button" aria-label="Close form">x</button>
         </div>
@@ -132,12 +213,8 @@
           </label>
 
           <label>
-            Priority
-            <select id="taskPriority" required>
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
-            </select>
+            Priority power
+            <input id="taskPriority" type="number" min="1" max="100" value="50" required />
           </label>
         </div>
 
@@ -146,9 +223,11 @@
           <input id="taskDueDate" type="date" />
         </label>
 
+        <p class="xp-preview" id="xpPreview">Reward: 55 XP and 8 coins</p>
+
         <div class="form-actions">
           <button class="secondary-button" id="cancelTaskForm" type="button">Cancel</button>
-          <button class="primary-button" type="submit">Save task</button>
+          <button class="primary-button" type="submit">Save quest</button>
         </div>
       </form>
     </div>

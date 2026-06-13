@@ -1,5 +1,6 @@
 const TASKS_KEY = "taskflow_tasks";
 const CATEGORIES_KEY = "taskflow_categories";
+const PROFILE_KEY = "taskflow_rpg_profile";
 const THEME_KEY = "taskflow_theme";
 
 const defaultCategories = [
@@ -9,8 +10,32 @@ const defaultCategories = [
   { name: "Shopping", color: "#d94b5c" },
 ];
 
-let tasks = loadTasks();
+const achievements = [
+  { id: "complete-10", title: "Complete 10 tasks", target: 10, reward: 50 },
+  { id: "complete-50", title: "Complete 50 tasks", target: 50, reward: 180 },
+  { id: "complete-100", title: "Complete 100 tasks", target: 100, reward: 400 },
+];
+
+const shopItems = [
+  { id: "focus-break", title: "Focus Break", description: "Take a guilt-free 10 minute break.", cost: 40 },
+  { id: "theme-token", title: "Theme Token", description: "Claim a small cosmetic reward.", cost: 90 },
+  { id: "boss-pass", title: "Boss Pass", description: "Skip one tiny task and keep momentum.", cost: 160 },
+];
+
+const defaultProfile = {
+  totalXp: 0,
+  coins: 0,
+  currentStreak: 0,
+  bestStreak: 0,
+  lastCompletionDate: "",
+  dailyGoal: 3,
+  unlockedAchievements: [],
+  purchasedItems: [],
+};
+
+let tasks = migrateTasks(loadTasks());
 let categories = loadCategories();
+let profile = loadProfile();
 let activeCategory = "All";
 let activeStatus = "All";
 let searchTerm = "";
@@ -26,6 +51,7 @@ const elements = {
   taskCategory: document.getElementById("taskCategory"),
   taskPriority: document.getElementById("taskPriority"),
   taskDueDate: document.getElementById("taskDueDate"),
+  xpPreview: document.getElementById("xpPreview"),
   openTaskForm: document.getElementById("openTaskForm"),
   closeTaskForm: document.getElementById("closeTaskForm"),
   cancelTaskForm: document.getElementById("cancelTaskForm"),
@@ -46,10 +72,26 @@ const elements = {
   totalTasks: document.getElementById("totalTasks"),
   completedTasks: document.getElementById("completedTasks"),
   activeTasks: document.getElementById("activeTasks"),
-  progressPercent: document.getElementById("progressPercent"),
-  progressFill: document.getElementById("progressFill"),
+  bestStreak: document.getElementById("bestStreak"),
   todayLabel: document.getElementById("todayLabel"),
+  playerLevel: document.getElementById("playerLevel"),
+  levelRing: document.getElementById("levelRing"),
+  xpText: document.getElementById("xpText"),
+  totalXpText: document.getElementById("totalXpText"),
+  xpFill: document.getElementById("xpFill"),
+  coinCount: document.getElementById("coinCount"),
+  currentStreak: document.getElementById("currentStreak"),
+  productivityScore: document.getElementById("productivityScore"),
+  dailyGoalText: document.getElementById("dailyGoalText"),
+  dailyGoalInput: document.getElementById("dailyGoalInput"),
+  dailyGoalFill: document.getElementById("dailyGoalFill"),
+  achievementList: document.getElementById("achievementList"),
+  shopList: document.getElementById("shopList"),
+  statisticsGrid: document.getElementById("statisticsGrid"),
 };
+
+saveTasks();
+saveProfile();
 
 function loadTasks() {
   const savedTasks = localStorage.getItem(TASKS_KEY);
@@ -69,6 +111,36 @@ function saveCategories() {
   localStorage.setItem(CATEGORIES_KEY, JSON.stringify(categories));
 }
 
+function loadProfile() {
+  const savedProfile = localStorage.getItem(PROFILE_KEY);
+  return savedProfile ? { ...defaultProfile, ...JSON.parse(savedProfile) } : { ...defaultProfile };
+}
+
+function saveProfile() {
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+}
+
+function migrateTasks(savedTasks) {
+  return savedTasks.map((task) => {
+    const migratedTask = { ...task };
+
+    if (typeof migratedTask.priority !== "number") {
+      const priorityMap = { Low: 25, Medium: 60, High: 90 };
+      migratedTask.priority = priorityMap[migratedTask.priority] || 50;
+    }
+
+    if (typeof migratedTask.xpAwarded !== "boolean") {
+      migratedTask.xpAwarded = false;
+    }
+
+    if (!migratedTask.completedAt) {
+      migratedTask.completedAt = "";
+    }
+
+    return migratedTask;
+  });
+}
+
 function setTodayLabel() {
   const today = new Date();
   elements.todayLabel.textContent = today.toLocaleDateString("en-US", {
@@ -83,7 +155,7 @@ function openForm(task = null) {
   renderCategoryOptions();
 
   if (task) {
-    elements.formTitle.textContent = "Edit task";
+    elements.formTitle.textContent = "Edit quest";
     elements.taskId.value = task.id;
     elements.taskTitle.value = task.title;
     elements.taskDescription.value = task.description;
@@ -91,11 +163,13 @@ function openForm(task = null) {
     elements.taskPriority.value = task.priority;
     elements.taskDueDate.value = task.dueDate;
   } else {
-    elements.formTitle.textContent = "Add task";
+    elements.formTitle.textContent = "Add quest";
     elements.taskId.value = "";
+    elements.taskPriority.value = 50;
     elements.taskCategory.value = categories[0]?.name || "";
   }
 
+  updateXpPreview();
   elements.taskModal.classList.remove("hidden");
   elements.taskTitle.focus();
 }
@@ -113,7 +187,7 @@ function handleTaskSubmit(event) {
     title: elements.taskTitle.value.trim(),
     description: elements.taskDescription.value.trim(),
     category: elements.taskCategory.value,
-    priority: elements.taskPriority.value,
+    priority: clampPriority(elements.taskPriority.value),
     dueDate: elements.taskDueDate.value,
   };
 
@@ -132,6 +206,8 @@ function handleTaskSubmit(event) {
       id: crypto.randomUUID(),
       ...taskData,
       completed: false,
+      xpAwarded: false,
+      completedAt: "",
       createdAt: new Date().toISOString(),
     });
   }
@@ -142,7 +218,7 @@ function handleTaskSubmit(event) {
 }
 
 function deleteTask(taskId) {
-  if (!confirm("Delete this task?")) {
+  if (!confirm("Delete this quest?")) {
     return;
   }
 
@@ -152,11 +228,63 @@ function deleteTask(taskId) {
 }
 
 function toggleTaskCompletion(taskId) {
-  tasks = tasks.map((task) =>
-    task.id === taskId ? { ...task, completed: !task.completed } : task
-  );
+  tasks = tasks.map((task) => {
+    if (task.id !== taskId) {
+      return task;
+    }
+
+    if (task.completed) {
+      return { ...task, completed: false };
+    }
+
+    const completedTask = {
+      ...task,
+      completed: true,
+      completedAt: new Date().toISOString(),
+    };
+
+    if (!task.xpAwarded) {
+      awardQuestRewards(completedTask);
+      completedTask.xpAwarded = true;
+    }
+
+    return completedTask;
+  });
+
+  unlockAchievements();
   saveTasks();
+  saveProfile();
   renderApp();
+}
+
+function awardQuestRewards(task) {
+  profile.totalXp += calculateXp(task.priority);
+  profile.coins += calculateCoins(task.priority);
+  updateStreak();
+}
+
+function updateStreak() {
+  const today = getDateKey(new Date());
+  const yesterday = getDateKey(addDays(new Date(), -1));
+
+  if (profile.lastCompletionDate === today) {
+    return;
+  }
+
+  profile.currentStreak = profile.lastCompletionDate === yesterday ? profile.currentStreak + 1 : 1;
+  profile.bestStreak = Math.max(profile.bestStreak, profile.currentStreak);
+  profile.lastCompletionDate = today;
+}
+
+function unlockAchievements() {
+  const completedCount = getAwardedCompletionCount();
+
+  achievements.forEach((achievement) => {
+    if (completedCount >= achievement.target && !profile.unlockedAchievements.includes(achievement.id)) {
+      profile.unlockedAchievements.push(achievement.id);
+      profile.coins += achievement.reward;
+    }
+  });
 }
 
 function handleCategorySubmit(event) {
@@ -223,7 +351,7 @@ function deleteCategory(categoryName) {
   const taskCount = tasks.filter((task) => task.category === categoryName).length;
   const message =
     taskCount > 0
-      ? `Delete "${categoryName}"? ${taskCount} task(s) will move to "${fallbackCategory.name}".`
+      ? `Delete "${categoryName}"? ${taskCount} quest(s) will move to "${fallbackCategory.name}".`
       : `Delete "${categoryName}"?`;
 
   if (!confirm(message)) {
@@ -244,12 +372,30 @@ function deleteCategory(categoryName) {
   renderApp();
 }
 
+function buyShopItem(itemId) {
+  const item = shopItems.find((shopItem) => shopItem.id === itemId);
+
+  if (!item || profile.purchasedItems.includes(itemId)) {
+    return;
+  }
+
+  if (profile.coins < item.cost) {
+    alert("Not enough coins yet.");
+    return;
+  }
+
+  profile.coins -= item.cost;
+  profile.purchasedItems.push(itemId);
+  saveProfile();
+  renderApp();
+}
+
 function categoryExists(name) {
   return categories.some((category) => category.name.toLowerCase() === name.toLowerCase());
 }
 
 function getCategory(name) {
-  return categories.find((category) => category.name === name) || categories[0];
+  return categories.find((category) => category.name === name) || categories[0] || defaultCategories[0];
 }
 
 function getFilteredTasks() {
@@ -272,8 +418,8 @@ function renderTasks() {
   if (filteredTasks.length === 0) {
     elements.taskList.innerHTML = `
       <div class="empty-state">
-        <strong>No tasks found</strong>
-        <span>Add a new task or adjust your filters.</span>
+        <strong>No quests found</strong>
+        <span>Add a new quest or adjust your filters.</span>
       </div>
     `;
     return;
@@ -286,6 +432,8 @@ function createTaskCard(task) {
   const category = getCategory(task.category);
   const dueDateText = task.dueDate ? formatDueDate(task.dueDate) : "No due date";
   const description = task.description || "No description added.";
+  const xp = calculateXp(task.priority);
+  const coins = calculateCoins(task.priority);
 
   return `
     <article class="task-card ${task.completed ? "completed" : ""}" style="--category-color: ${category.color}">
@@ -305,7 +453,9 @@ function createTaskCard(task) {
             <span class="color-dot" style="background: ${category.color}"></span>
             ${escapeHtml(task.category)}
           </span>
-          <span class="chip priority-${task.priority.toLowerCase()}">${task.priority} priority</span>
+          <span class="chip priority-number">Priority ${task.priority}/100</span>
+          <span class="chip xp-chip">${xp} XP</span>
+          <span class="chip">${coins} coins</span>
           <span class="chip">${dueDateText}</span>
         </div>
       </div>
@@ -338,7 +488,7 @@ function renderCategoryNavigation() {
 
   elements.categoryNav.innerHTML = `
     <button class="category-button ${activeCategory === "All" ? "active" : ""}" data-category="All">
-      <span>All Tasks</span>
+      <span>All Quests</span>
       <strong>${total}</strong>
     </button>
     ${categoryButtons}
@@ -379,13 +529,112 @@ function renderStats() {
   const total = tasks.length;
   const completed = tasks.filter((task) => task.completed).length;
   const active = total - completed;
-  const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
 
   elements.totalTasks.textContent = total;
   elements.completedTasks.textContent = completed;
   elements.activeTasks.textContent = active;
-  elements.progressPercent.textContent = `${percent}%`;
-  elements.progressFill.style.width = `${percent}%`;
+  elements.bestStreak.textContent = profile.bestStreak;
+}
+
+function renderRpgProfile() {
+  const levelInfo = getLevelInfo(profile.totalXp);
+  const todayCompleted = getTodayCompletedCount();
+  const dailyPercent = Math.min(100, Math.round((todayCompleted / profile.dailyGoal) * 100));
+
+  elements.playerLevel.textContent = levelInfo.level;
+  elements.levelRing.textContent = `${levelInfo.percent}%`;
+  elements.levelRing.style.background = `conic-gradient(var(--accent) ${levelInfo.percent}%, var(--surface-soft) 0)`;
+  elements.xpText.textContent = `${levelInfo.currentXp} / ${levelInfo.nextLevelXp} XP`;
+  elements.totalXpText.textContent = `${profile.totalXp} total XP`;
+  elements.xpFill.style.width = `${levelInfo.percent}%`;
+  elements.coinCount.textContent = profile.coins;
+  elements.currentStreak.textContent = profile.currentStreak;
+  elements.productivityScore.textContent = calculateProductivityScore();
+  elements.dailyGoalInput.value = profile.dailyGoal;
+  elements.dailyGoalText.textContent = `${todayCompleted} / ${profile.dailyGoal} quests`;
+  elements.dailyGoalFill.style.width = `${dailyPercent}%`;
+}
+
+function renderAchievements() {
+  const completedCount = getAwardedCompletionCount();
+
+  elements.achievementList.innerHTML = achievements
+    .map((achievement) => {
+      const unlocked = profile.unlockedAchievements.includes(achievement.id);
+      const percent = Math.min(100, Math.round((completedCount / achievement.target) * 100));
+
+      return `
+        <article class="achievement-card ${unlocked ? "unlocked" : ""}">
+          <div>
+            <strong>${achievement.title}</strong>
+            <span>${Math.min(completedCount, achievement.target)} / ${achievement.target}</span>
+          </div>
+          <div class="progress-track mini" aria-hidden="true">
+            <div class="progress-fill achievement-fill" style="width: ${percent}%"></div>
+          </div>
+          <small>${unlocked ? "Unlocked" : `Reward: ${achievement.reward} coins`}</small>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderShop() {
+  elements.shopList.innerHTML = shopItems
+    .map((item) => {
+      const purchased = profile.purchasedItems.includes(item.id);
+      const affordable = profile.coins >= item.cost;
+
+      return `
+        <article class="shop-card ${purchased ? "purchased" : ""}">
+          <div>
+            <strong>${item.title}</strong>
+            <p>${item.description}</p>
+            <span>${item.cost} coins</span>
+          </div>
+          <button
+            type="button"
+            data-shop-id="${item.id}"
+            ${purchased || !affordable ? "disabled" : ""}
+          >
+            ${purchased ? "Owned" : "Buy"}
+          </button>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderStatistics() {
+  const total = tasks.length;
+  const completed = tasks.filter((task) => task.completed).length;
+  const active = total - completed;
+  const completionRate = total === 0 ? 0 : Math.round((completed / total) * 100);
+  const todayCompleted = getTodayCompletedCount();
+  const score = calculateProductivityScore();
+
+  const stats = [
+    ["Completion rate", `${completionRate}%`],
+    ["Today completed", todayCompleted],
+    ["Daily target", profile.dailyGoal],
+    ["Current streak", profile.currentStreak],
+    ["Best streak", profile.bestStreak],
+    ["Total XP", profile.totalXp],
+    ["Coins", profile.coins],
+    ["Active quests", active],
+    ["Productivity score", score],
+  ];
+
+  elements.statisticsGrid.innerHTML = stats
+    .map(
+      ([label, value]) => `
+        <article class="stat-tile">
+          <span>${label}</span>
+          <strong>${value}</strong>
+        </article>
+      `
+    )
+    .join("");
 }
 
 function renderApp() {
@@ -393,7 +642,83 @@ function renderApp() {
   renderCategoryNavigation();
   renderCategorySettings();
   renderStats();
+  renderRpgProfile();
+  renderAchievements();
+  renderShop();
+  renderStatistics();
   renderTasks();
+}
+
+function updateXpPreview() {
+  const priority = clampPriority(elements.taskPriority.value);
+  elements.xpPreview.textContent = `Reward: ${calculateXp(priority)} XP and ${calculateCoins(priority)} coins`;
+}
+
+function calculateXp(priority) {
+  return 10 + Math.round(clampPriority(priority) * 0.9);
+}
+
+function calculateCoins(priority) {
+  return 3 + Math.round(clampPriority(priority) / 10);
+}
+
+function clampPriority(value) {
+  const number = Number(value);
+  if (Number.isNaN(number)) {
+    return 50;
+  }
+  return Math.min(100, Math.max(1, Math.round(number)));
+}
+
+function getLevelInfo(totalXp) {
+  let level = 1;
+  let remainingXp = totalXp;
+  let nextLevelXp = getXpForLevel(level);
+
+  while (remainingXp >= nextLevelXp) {
+    remainingXp -= nextLevelXp;
+    level += 1;
+    nextLevelXp = getXpForLevel(level);
+  }
+
+  return {
+    level,
+    currentXp: remainingXp,
+    nextLevelXp,
+    percent: Math.round((remainingXp / nextLevelXp) * 100),
+  };
+}
+
+function getXpForLevel(level) {
+  return 100 + (level - 1) * 45;
+}
+
+function calculateProductivityScore() {
+  const total = tasks.length;
+  const completed = tasks.filter((task) => task.completed).length;
+  const completionScore = total === 0 ? 0 : Math.round((completed / total) * 60);
+  const streakScore = Math.min(25, profile.currentStreak * 5);
+  const goalScore = Math.min(15, Math.round((getTodayCompletedCount() / profile.dailyGoal) * 15));
+  return Math.min(100, completionScore + streakScore + goalScore);
+}
+
+function getAwardedCompletionCount() {
+  return tasks.filter((task) => task.xpAwarded).length;
+}
+
+function getTodayCompletedCount() {
+  const today = getDateKey(new Date());
+  return tasks.filter((task) => task.completedAt && getDateKey(new Date(task.completedAt)) === today).length;
+}
+
+function getDateKey(date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function addDays(date, days) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
 }
 
 function formatDueDate(dateValue) {
@@ -431,6 +756,13 @@ elements.openTaskForm.addEventListener("click", () => openForm());
 elements.closeTaskForm.addEventListener("click", closeForm);
 elements.cancelTaskForm.addEventListener("click", closeForm);
 elements.taskForm.addEventListener("submit", handleTaskSubmit);
+elements.taskPriority.addEventListener("input", updateXpPreview);
+
+elements.dailyGoalInput.addEventListener("change", (event) => {
+  profile.dailyGoal = Math.min(25, Math.max(1, Math.round(Number(event.target.value) || 3)));
+  saveProfile();
+  renderApp();
+});
 
 elements.openCategorySettings.addEventListener("click", () => {
   elements.categoryModal.classList.remove("hidden");
@@ -513,6 +845,14 @@ elements.taskList.addEventListener("change", (event) => {
   }
 });
 
+elements.shopList.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-shop-id]");
+
+  if (button) {
+    buyShopItem(button.dataset.shopId);
+  }
+});
+
 elements.taskModal.addEventListener("click", (event) => {
   if (event.target === elements.taskModal) {
     closeForm();
@@ -532,4 +872,5 @@ elements.themeToggle.addEventListener("click", () => {
 
 setTodayLabel();
 initializeTheme();
+unlockAchievements();
 renderApp();
